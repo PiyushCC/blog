@@ -1,0 +1,36 @@
+<header class="sidebar-header">
+  <a href="/" class="site-title">{{ site.title }}</a>
+  <button type="button" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">Theme</button>
+</header>
+<nav class="sidebar-nav">
+  <a href="/">Home</a>
+  <a href="/list/">Blogs</a>
+  <a href="/archive/">Archive</a>
+</nav>
+<div class="sidebar-search">
+  <button type="button" class="search-open" aria-label="Open search">Search</button>
+</div>
+<section class="sidebar-recent" aria-label="Recent posts">
+  <h2>Recent</h2>
+  <ul>
+    {% for post in collections.posts | head(10) %}
+    <li><a href="{{ post.url }}">{{ post.data.title }}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+<section class="sidebar-tags" aria-label="Tags">
+  <h2>Tags</h2>
+  <ul>
+    {% for tag in collections.tagList %}
+    <li><a href="/list/?tag={{ tag | slug }}">{{ tag }}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+<section class="sidebar-categories" aria-label="Categories">
+  <h2>Categories</h2>
+  <ul>
+    {% for cat in collections.categoryList %}
+    <li><a href="/list/?category={{ cat | slug }}">{{ cat }}</a></li>
+    {% endfor %}
+  </ul>
+</section>

@@ -1,0 +1,285 @@
+---
+layout: base.njk
+title: Blogs
+pagination:
+  data: collections.posts
+  size: 10
+  alias: posts
+permalink: "/list/{% if pagination.pageNumber > 0 %}{{ pagination.pageNumber + 1 }}/{% endif %}index.html"
+---
+
+<div class="main-content-wrap">
+  <h1>Blogs</h1>
+  <div class="blog-filters" aria-label="Filter posts">
+    <div class="blog-filter blog-filter-tag">
+      <button type="button" class="blog-filter-btn" id="tag-dropdown-btn" aria-expanded="false" aria-haspopup="listbox" aria-label="Filter by tag">
+        <span class="blog-filter-label">Tag</span>
+        <span class="blog-filter-value" id="tag-dropdown-value">All</span>
+        <span class="blog-filter-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="blog-filter-menu" id="tag-dropdown-menu" role="listbox" aria-label="Select tag" hidden>
+        <button type="button" class="blog-filter-option" role="option" data-slug="" data-name="All">All</button>
+        {% for tag in collections.tagList %}
+        <button type="button" class="blog-filter-option" role="option" data-slug="{{ tag | slug }}" data-name="{{ tag }}">{{ tag }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="blog-filter blog-filter-category">
+      <button type="button" class="blog-filter-btn" id="category-dropdown-btn" aria-expanded="false" aria-haspopup="listbox" aria-label="Filter by category">
+        <span class="blog-filter-label">Category</span>
+        <span class="blog-filter-value" id="category-dropdown-value">All</span>
+        <span class="blog-filter-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="blog-filter-menu" id="category-dropdown-menu" role="listbox" aria-label="Select category" hidden>
+        <button type="button" class="blog-filter-option" role="option" data-slug="" data-name="All">All</button>
+        {% for category in collections.categoryList %}
+        <button type="button" class="blog-filter-option" role="option" data-slug="{{ category | slug }}" data-name="{{ category }}">{{ category }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <ul class="post-list" id="blog-post-list">
+    {% for post in posts %}
+    <li data-tags="{{ post.data.tags | tagSlugs }}" data-category-slugs="{{ post.data | categorySlugs }}">
+      <a href="{{ post.url }}">{{ post.data.title }}</a>
+      <p class="excerpt">{{ post.templateContent | striptags | truncate(160) }}</p>
+      <span class="post-meta">
+        <time datetime="{{ post.date | date('YYYY-MM-DD') }}">{{ post.date | date('YYYY-MM-DD') }}</time>
+        <span class="reading-time">{{ post.templateContent | readingTime }}</span>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="blog-filter-none" id="blog-filter-none" hidden>No posts match the selected filter.</p>
+  <nav class="blog-pagination" id="blog-pagination" aria-label="Blog pages" style="display: none;">
+    <div class="blog-pagination-inner">
+      <a href="#" class="blog-pagination-link blog-pagination-prev" id="blog-pagination-prev">← Previous</a>
+      <span class="blog-pagination-info" id="blog-pagination-info">Page 1 of 1</span>
+      <a href="#" class="blog-pagination-link blog-pagination-next" id="blog-pagination-next">Next →</a>
+    </div>
+  </nav>
+  {% if pagination.hrefs.length > 1 %}
+  <nav class="blog-pagination blog-pagination-server" id="blog-pagination-server" aria-label="Blog pages">
+    <div class="blog-pagination-inner">
+      {% if pagination.previousPageHref %}
+      <a href="{{ pagination.previousPageHref }}" class="blog-pagination-link blog-pagination-prev">← Previous</a>
+      {% else %}
+      <span class="blog-pagination-link blog-pagination-prev is-disabled" aria-disabled="true">← Previous</span>
+      {% endif %}
+      <span class="blog-pagination-info">Page {{ pagination.pageNumber + 1 }} of {{ pagination.hrefs.length }}</span>
+      {% if pagination.nextPageHref %}
+      <a href="{{ pagination.nextPageHref }}" class="blog-pagination-link blog-pagination-next">Next →</a>
+      {% else %}
+      <span class="blog-pagination-link blog-pagination-next is-disabled" aria-disabled="true">Next →</span>
+      {% endif %}
+    </div>
+  </nav>
+  {% endif %}
+</div>
+<script type="application/json" id="blog-posts-json">{{ collections.posts | postsClientData | toJson | safe }}</script>
+<script>window.BLOG_PATH_PREFIX = {{ pathPrefix | toJson }};</script>
+<script>
+(function () {
+  var PAGE_SIZE = 10;
+  var list = document.getElementById("blog-post-list");
+  var noneEl = document.getElementById("blog-filter-none");
+  var tagBtn = document.getElementById("tag-dropdown-btn");
+  var tagMenu = document.getElementById("tag-dropdown-menu");
+  var tagValue = document.getElementById("tag-dropdown-value");
+  var categoryBtn = document.getElementById("category-dropdown-btn");
+  var categoryMenu = document.getElementById("category-dropdown-menu");
+  var categoryValue = document.getElementById("category-dropdown-value");
+  var paginationEl = document.getElementById("blog-pagination");
+  var paginationServer = document.getElementById("blog-pagination-server");
+  var paginationPrev = document.getElementById("blog-pagination-prev");
+  var paginationNext = document.getElementById("blog-pagination-next");
+  var paginationInfo = document.getElementById("blog-pagination-info");
+  var allPosts = [];
+  try {
+    var jsonEl = document.getElementById("blog-posts-json");
+    if (jsonEl && jsonEl.textContent) allPosts = JSON.parse(jsonEl.textContent);
+  } catch (e) {}
+  var blogBase = (typeof window.BLOG_PATH_PREFIX === "string" ? window.BLOG_PATH_PREFIX : "") + "list/";
+  if (blogBase.indexOf("/list/") === -1) blogBase = "/list/";
+
+  if (!list || !tagBtn) return;
+
+  function getUrlFilter() {
+    var params = new URLSearchParams(window.location.search);
+    return { tag: params.get("tag") || "", category: params.get("category") || "" };
+  }
+
+  function getUrlPage() {
+    var p = parseInt(new URLSearchParams(window.location.search).get("page"), 10);
+    return (p >= 1 && p < 1e6) ? p : 1;
+  }
+
+  function setFilterUrl(tag, category, page) {
+    var url = blogBase + "?";
+    var params = [];
+    if (tag) params.push("tag=" + encodeURIComponent(tag));
+    if (category) params.push("category=" + encodeURIComponent(category));
+    if (page > 1) params.push("page=" + page);
+    return url + params.join("&");
+  }
+
+  function hasFilter(f) {
+    return !!(f.tag || f.category);
+  }
+
+  function filterPostsList(posts, activeTag, activeCategory) {
+    return posts.filter(function (p) {
+      if (activeTag) return p.tags && p.tags.indexOf(activeTag) !== -1;
+      if (activeCategory) return p.categorySlugs && p.categorySlugs.indexOf(activeCategory) !== -1;
+      return true;
+    });
+  }
+
+  function renderClientList(filtered, page) {
+    if (paginationServer) paginationServer.style.display = "none";
+    var total = filtered.length;
+    var totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    var p = Math.min(Math.max(1, page), totalPages);
+    var start = (p - 1) * PAGE_SIZE;
+    var slice = filtered.slice(start, start + PAGE_SIZE);
+
+    var html = slice.map(function (post) {
+      return "<li data-tags=\"" + (post.tags || []).join(",") + "\" data-category-slugs=\"" + (post.categorySlugs || []).join(",") + "\">" +
+        "<a href=\"" + (typeof window.BLOG_PATH_PREFIX === "string" ? window.BLOG_PATH_PREFIX : "") + (post.url || "") + "\">" + escapeHtml(post.title || "") + "</a>" +
+        "<p class=\"excerpt\">" + escapeHtml(post.excerpt || "") + "</p>" +
+        "<span class=\"post-meta\">" +
+        "<time datetime=\"" + escapeHtml(post.date || "") + "\">" + escapeHtml(post.date || "") + "</time>" +
+        " <span class=\"reading-time\">" + escapeHtml(post.readingTime || "") + "</span>" +
+        "</span></li>";
+    }).join("");
+    list.innerHTML = html;
+
+    noneEl.hidden = slice.length > 0;
+
+    if (totalPages > 1) {
+      paginationEl.style.display = "";
+      if (paginationServer) paginationServer.style.display = "none";
+      paginationInfo.textContent = "Page " + p + " of " + totalPages;
+      var prevHref = p > 1 ? setFilterUrl(getUrlFilter().tag, getUrlFilter().category, p - 1) : null;
+      var nextHref = p < totalPages ? setFilterUrl(getUrlFilter().tag, getUrlFilter().category, p + 1) : null;
+      if (paginationPrev) {
+        if (prevHref) {
+          paginationPrev.href = prevHref;
+          paginationPrev.style.display = "";
+          paginationPrev.classList.remove("is-disabled");
+          paginationPrev.onclick = function (e) { e.preventDefault(); goToFilterPage(p - 1); };
+        } else {
+          paginationPrev.removeAttribute("href");
+          paginationPrev.classList.add("is-disabled");
+          paginationPrev.onclick = null;
+        }
+      }
+      if (paginationNext) {
+        if (nextHref) {
+          paginationNext.href = nextHref;
+          paginationNext.style.display = "";
+          paginationNext.classList.remove("is-disabled");
+          paginationNext.onclick = function (e) { e.preventDefault(); goToFilterPage(p + 1); };
+        } else {
+          paginationNext.removeAttribute("href");
+          paginationNext.classList.add("is-disabled");
+          paginationNext.onclick = null;
+        }
+      }
+    } else {
+      paginationEl.style.display = "none";
+      if (paginationServer && !hasFilter(getUrlFilter())) paginationServer.style.display = "";
+    }
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement("div");
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function goToFilterPage(page) {
+    var f = getUrlFilter();
+    var url = setFilterUrl(f.tag, f.category, page);
+    window.history.pushState({}, "", url);
+    applyFromUrl();
+  }
+
+  function applyFromUrl() {
+    var f = getUrlFilter();
+    var page = getUrlPage();
+    if (tagValue) tagValue.textContent = f.tag ? (document.querySelector("#tag-dropdown-menu [data-slug=\"" + f.tag + "\"]")?.getAttribute("data-name") || f.tag) : "All";
+    if (categoryValue) categoryValue.textContent = f.category ? (document.querySelector("#category-dropdown-menu [data-slug=\"" + f.category + "\"]")?.getAttribute("data-name") || f.category) : "All";
+
+    if (hasFilter(f)) {
+      var filtered = filterPostsList(allPosts, f.tag, f.category);
+      renderClientList(filtered, page);
+    } else {
+      if (paginationEl) paginationEl.style.display = "none";
+      if (paginationServer) paginationServer.style.display = "";
+      var items = list.querySelectorAll("li");
+      items.forEach(function (li) { li.hidden = false; });
+      if (noneEl) noneEl.hidden = true;
+    }
+  }
+
+  function closeMenus() {
+    if (tagMenu) { tagMenu.hidden = true; if (tagBtn) tagBtn.setAttribute("aria-expanded", "false"); }
+    if (categoryMenu) { categoryMenu.hidden = true; if (categoryBtn) categoryBtn.setAttribute("aria-expanded", "false"); }
+  }
+
+  function selectTag(slug, name) {
+    closeMenus();
+    if (!slug) {
+      window.location.href = blogBase;
+      return;
+    }
+    window.location.href = setFilterUrl(slug, "", 1);
+  }
+
+  function selectCategory(slug, name) {
+    closeMenus();
+    if (!slug) {
+      window.location.href = blogBase;
+      return;
+    }
+    window.location.href = setFilterUrl("", slug, 1);
+  }
+
+  applyFromUrl();
+
+  if (tagBtn && tagMenu) {
+    tagBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = !tagMenu.hidden;
+      closeMenus();
+      if (!open) {
+        tagMenu.hidden = false;
+        tagBtn.setAttribute("aria-expanded", "true");
+      }
+    });
+    tagMenu.querySelectorAll(".blog-filter-option").forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        selectTag(opt.getAttribute("data-slug") || "", opt.getAttribute("data-name") || "All");
+      });
+    });
+  }
+
+  if (categoryBtn && categoryMenu) {
+    categoryBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = !categoryMenu.hidden;
+      closeMenus();
+      if (!open) { categoryMenu.hidden = false; categoryBtn.setAttribute("aria-expanded", "true"); }
+    });
+    categoryMenu.querySelectorAll(".blog-filter-option").forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        selectCategory(opt.getAttribute("data-slug") || "", opt.getAttribute("data-name") || "All");
+      });
+    });
+  }
+
+  window.addEventListener("popstate", applyFromUrl);
+  document.addEventListener("click", closeMenus);
+})();
+</script>
